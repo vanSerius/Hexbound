@@ -1,0 +1,12 @@
+export const CONFIG = {
+  START_HEALTH: 30,
+  START_MANA: 1,
+  MAX_MANA: 7,
+  STARTING_HAND: 4,
+  MAX_LANE_UNITS: 3,
+  MAX_RELICS: 5,
+  LANES: ['left', 'center', 'right'],
+  MAX_LOG_ENTRIES: 200,
+  AI_TURN_DELAY_MS: 600,
+  AI_BETWEEN_PLAYS_MS: 350,
+};

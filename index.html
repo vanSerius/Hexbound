@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEXBOUND</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="start-screen" class="screen active">
+    <div class="title-block">
+      <h1 class="game-title">HEXBOUND</h1>
+      <p class="game-subtitle">A dark fantasy lane battler</p>
+      <button id="start-button" class="big-button">Start Game</button>
+      <p class="hint">Click cards in your hand to play them. Click End Turn to resolve combat.</p>
+    </div>
+  </div>
+
+  <div id="game-screen" class="screen">
+    <div id="enemy-area" class="hero-area enemy">
+      <div class="hero-portrait">
+        <div class="hero-name">Shadow Lich</div>
+        <div class="hero-stats">
+          <span class="health">HP <span id="enemy-health">30</span>/<span id="enemy-max-health">30</span></span>
+          <span class="mana">MANA <span id="enemy-mana">1</span>/<span id="enemy-max-mana">1</span></span>
+        </div>
+      </div>
+      <div class="hand-info">
+        <span>Hand: <span id="enemy-hand-count">0</span></span>
+        <span>Deck: <span id="enemy-deck-count">0</span></span>
+      </div>
+      <div id="enemy-relics" class="relic-zone"></div>
+    </div>
+
+    <div id="enemy-battlefield" class="battlefield">
+      <div class="lane" data-lane="left" data-side="enemy"><div class="lane-label">LEFT</div><div class="lane-units"></div></div>
+      <div class="lane" data-lane="center" data-side="enemy"><div class="lane-label">CENTER</div><div class="lane-units"></div></div>
+      <div class="lane" data-lane="right" data-side="enemy"><div class="lane-label">RIGHT</div><div class="lane-units"></div></div>
+    </div>
+
+    <div id="player-battlefield" class="battlefield player">
+      <div class="lane" data-lane="left" data-side="player"><div class="lane-units"></div><div class="lane-label">LEFT</div></div>
+      <div class="lane" data-lane="center" data-side="player"><div class="lane-units"></div><div class="lane-label">CENTER</div></div>
+      <div class="lane" data-lane="right" data-side="player"><div class="lane-units"></div><div class="lane-label">RIGHT</div></div>
+    </div>
+
+    <div id="player-area" class="hero-area player">
+      <div id="player-relics" class="relic-zone"></div>
+      <div class="hero-portrait">
+        <div class="hero-name">You</div>
+        <div class="hero-stats">
+          <span class="health">HP <span id="player-health">30</span>/<span id="player-max-health">30</span></span>
+          <span class="mana">MANA <span id="player-mana">1</span>/<span id="player-max-mana">1</span></span>
+        </div>
+      </div>
+      <div class="hand-info">
+        <span>Deck: <span id="player-deck-count">0</span></span>
+        <span>Discard: <span id="player-discard-count">0</span></span>
+      </div>
+      <button id="end-turn-button" class="end-turn">End Turn</button>
+    </div>
+
+    <div id="player-hand" class="hand"></div>
+
+    <aside id="log-panel" class="log-panel">
+      <h3>Log</h3>
+      <ul id="log-list"></ul>
+    </aside>
+  </div>
+
+  <div id="game-over" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="game-over-title">Victory</h2>
+      <p id="game-over-message"></p>
+      <button id="restart-button" class="big-button">Play Again</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
