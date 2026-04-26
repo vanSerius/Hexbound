@@ -19,6 +19,8 @@ export function createPlayer(name) {
     battlefield: { left: [], center: [], right: [] },
     relics: [],
     hasStarted: false,
+    pendingMana: 0,        // applied at the start of this player's next turn
+    spellsCastThisTurn: 0, // reset on turn_start; used by Mirror Shard
   };
 }
 
@@ -88,6 +90,7 @@ export function instantiateCard(card) {
     health: card.health ?? null,
     text: card.text || '',
     sprite: card.sprite || null,
+    restrictLane: card.restrictLane || null,
     abilities: Array.isArray(card.abilities) ? card.abilities.map((a) => ({ ...a })) : [],
     keywords: Array.isArray(card.keywords) ? [...card.keywords] : [],
   };

@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { effectiveCost } from './abilities.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -17,82 +18,34 @@ function ensureSheet(sheetName) {
   img.src = `assets/${sheetName}.png`;
 }
 
-function spriteStyle(sprite) {
-  if (!sprite) return '';
+/**
+ * Build CSS that crops the sprite-sheet down to one card cell. Uses the
+ * percentage-grid trick: with background-size = (cols*100%, rows*100%) the
+ * background image becomes (cols x rows) viewports tall/wide, and
+ * background-position 0..100% snaps to each cell.
+ */
+function spriteBackground(sprite) {
+  if (!sprite || !sprite.sheet) return null;
   ensureSheet(sprite.sheet);
-  if (_sheetCache.get(sprite.sheet) !== 'available') return '';
   const idx = sprite.index || 0;
   const col = idx % SHEET_COLS;
   const row = Math.floor(idx / SHEET_COLS);
-  // background-size: each cell at (100%/cols, 100%/rows). position: cell index.
-  return `background-image:url('assets/${sprite.sheet}.png');` +
-         `background-size:${SHEET_COLS * 100}% ${SHEET_ROWS * 100}%;` +
-         `background-position:${(col / (SHEET_COLS - 1)) * 100}% ${(row / (SHEET_ROWS - 1 || 1)) * 100}%;` +
-         `background-repeat:no-repeat;`;
+  const xPct = (col / Math.max(1, SHEET_COLS - 1)) * 100;
+  const yPct = (row / Math.max(1, SHEET_ROWS - 1)) * 100;
+  return {
+    backgroundImage: `url('assets/${sprite.sheet}.png')`,
+    backgroundSize: `${SHEET_COLS * 100}% ${SHEET_ROWS * 100}%`,
+    backgroundPosition: `${xPct}% ${yPct}%`,
+    backgroundRepeat: 'no-repeat',
+  };
 }
 
-function placeholderArt(card) {
-  // Different styling per type for a quick visual cue.
-  const tribe = card.tribe || card.type || '';
-  return tribe.toUpperCase();
-}
-
-function cardElement(card, opts = {}) {
-  const div = document.createElement('div');
-  div.className = `card ${card.type}` + (opts.unplayable ? ' unplayable' : '') + (opts.selected ? ' selected' : '');
-  div.dataset.handIndex = opts.handIndex;
-  div.innerHTML = `
-    <div class="cost">${card.cost}</div>
-    <div class="name" title="${escapeHtml(card.name)}">${escapeHtml(card.name)}</div>
-    <div class="art" style="${spriteStyle(card.sprite)}">
-      ${spriteStyle(card.sprite) ? '' : escapeHtml(placeholderArt(card))}
-    </div>
-    <div class="typeline">${cardTypeLine(card)}</div>
-    <div class="text-box">${escapeHtml(card.text || '')}</div>
-    ${card.type === 'creature'
-      ? `<div class="stats-line"><span class="atk">${card.attack}</span><span class="hp">${card.health}</span></div>`
-      : ''}
-  `;
-  return div;
-}
-
-function cardTypeLine(card) {
-  if (card.type === 'creature') return `Creature${card.tribe ? ' — ' + capitalize(card.tribe) : ''}`;
-  if (card.type === 'spell')    return 'Spell';
-  if (card.type === 'curse')    return 'Curse';
-  if (card.type === 'relic')    return 'Relic';
-  return '';
-}
-
-function unitElement(unit, sideClass, opts = {}) {
-  const div = document.createElement('div');
-  const kw = (unit.keywords || []);
-  div.className = `unit ${sideClass}` +
-    (unit.exhausted ? ' exhausted' : '') +
-    (kw.includes('taunt') ? ' taunt' : '') +
-    (kw.includes('fleeting') ? ' fleeting' : '') +
-    (opts.targetable ? ' targetable' : '');
-  div.dataset.instanceId = unit.instanceId;
-  const damaged = unit.health < unit.maxHealth;
-  div.innerHTML = `
-    <div class="unit-name" title="${escapeHtml(unit.name)}">${escapeHtml(unit.name)}</div>
-    <div class="unit-art" style="${spriteStyle(unit.sprite)}">
-      ${spriteStyle(unit.sprite) ? '' : escapeHtml(unit.tribe ? unit.tribe.toUpperCase() : '')}
-    </div>
-    <div class="unit-stats"><span class="atk">${unit.attack}</span><span class="hp ${damaged ? 'damaged' : ''}">${unit.health}</span></div>
-    ${kw.length ? `<div class="keywords">${kw.map((k) => `<span>${k.toUpperCase()}</span>`).join('')}</div>` : ''}
-  `;
-  return div;
-}
-
-function relicElement(relic) {
-  const d = document.createElement('div');
-  d.className = 'relic';
-  d.title = `${relic.name}\n\n${relic.text || ''}`;
-  // Two-letter abbreviation as glyph.
-  const initials = relic.name.split(' ').map((w) => w[0]).join('').slice(0, 2);
-  d.textContent = initials;
-  return d;
+function applyBg(el, bg) {
+  if (!bg) return;
+  el.style.backgroundImage = bg.backgroundImage;
+  el.style.backgroundSize = bg.backgroundSize;
+  el.style.backgroundPosition = bg.backgroundPosition;
+  el.style.backgroundRepeat = bg.backgroundRepeat;
 }
 
 function escapeHtml(s) {
@@ -101,13 +54,88 @@ function escapeHtml(s) {
   })[c]);
 }
 
-function capitalize(s) {
-  return s ? s[0].toUpperCase() + s.slice(1) : '';
+function cardElement(state, card, opts = {}) {
+  const div = document.createElement('div');
+  div.className =
+    `card ${card.type}` +
+    (opts.unplayable ? ' unplayable' : '') +
+    (opts.selected ? ' selected' : '');
+  div.dataset.handIndex = opts.handIndex;
+  div.title = `${card.name}\nCost ${card.cost}\n${card.text || ''}`;
+
+  applyBg(div, spriteBackground(card.sprite));
+
+  // Show modified cost badge if the effective cost differs from the printed
+  // cost (Ashen Choir / Iron Saint discounts).
+  const eff = effectiveCost(state, 'player', card);
+  if (eff !== (card.cost || 0)) {
+    const badge = document.createElement('div');
+    badge.className = 'cost-mod';
+    badge.textContent = String(eff);
+    badge.title = `Discounted cost: ${eff} (was ${card.cost})`;
+    div.appendChild(badge);
+  }
+
+  return div;
+}
+
+function unitElement(unit, sideClass, opts = {}) {
+  const div = document.createElement('div');
+  const kw = (unit.keywords || []);
+  div.className =
+    `unit ${sideClass}` +
+    (unit.exhausted ? ' exhausted' : '') +
+    (kw.includes('taunt') ? ' taunt' : '') +
+    (kw.includes('fleeting') ? ' fleeting' : '') +
+    (opts.targetable ? ' targetable' : '');
+  div.dataset.instanceId = unit.instanceId;
+
+  applyBg(div, spriteBackground(unit.sprite));
+
+  // Stats overlay — current ATK/HP can drift from printed values via buffs
+  // and damage, so we show them on top.
+  const damaged = unit.health < unit.maxHealth;
+  const stats = document.createElement('div');
+  stats.className = 'unit-stats-overlay';
+  stats.innerHTML =
+    `<span class="atk">${unit.attack}</span>` +
+    `<span class="hp${damaged ? ' damaged' : ''}">${unit.health}</span>`;
+  div.appendChild(stats);
+
+  if (kw.length) {
+    const k = document.createElement('div');
+    k.className = 'unit-keywords-overlay';
+    k.innerHTML = kw.map((w) => `<span>${w[0].toUpperCase()}</span>`).join('');
+    k.title = kw.join(', ');
+    div.appendChild(k);
+  }
+
+  // For tokens that have no sprite, fall back to a small label.
+  if (!unit.sprite) {
+    const label = document.createElement('div');
+    label.className = 'unit-fallback-label';
+    label.textContent = unit.name;
+    div.appendChild(label);
+  }
+
+  return div;
+}
+
+function relicElement(relic) {
+  const d = document.createElement('div');
+  d.className = 'relic';
+  d.title = `${relic.name}\n\n${relic.text || ''}`;
+  applyBg(d, spriteBackground(relic.sprite));
+  if (!relic.sprite) {
+    const initials = relic.name.split(' ').map((w) => w[0]).join('').slice(0, 2);
+    d.textContent = initials;
+  }
+  return d;
 }
 
 /**
  * Full re-render. `selection` describes the player's current click state:
- *   { selectedHandIndex, validLanes: Set<lane>, targetableUnits: Set<instanceId>, heroTargetSides: Set<side> }
+ *   { selectedHandIndex, validLanes, targetableUnits, heroTargetSides }
  */
 export function render(state, selection = {}) {
   const sel = {
@@ -134,10 +162,8 @@ export function render(state, selection = {}) {
   $('enemy-deck-count').textContent = state.enemy.deck.length;
 
   // Hero target highlights
-  const enemyHero = $('enemy-area');
-  const playerHero = $('player-area');
-  enemyHero.classList.toggle('targetable', sel.heroTargetSides.has('enemy'));
-  playerHero.classList.toggle('targetable', sel.heroTargetSides.has('player'));
+  $('enemy-area').classList.toggle('targetable', sel.heroTargetSides.has('enemy'));
+  $('player-area').classList.toggle('targetable', sel.heroTargetSides.has('player'));
 
   // Battlefield
   for (const lane of CONFIG.LANES) {
@@ -177,18 +203,17 @@ export function render(state, selection = {}) {
   handEl.innerHTML = '';
   state.player.hand.forEach((card, i) => {
     const isMine = state.turn === 'player' && !state.gameOver;
-    const playable = isMine && card.cost <= state.player.mana && !state.aiThinking;
-    const el = cardElement(card, {
+    const playable = isMine && effectiveCost(state, 'player', card) <= state.player.mana && !state.aiThinking;
+    handEl.appendChild(cardElement(state, card, {
       handIndex: i,
       unplayable: !playable,
       selected: sel.selectedHandIndex === i,
-    });
-    handEl.appendChild(el);
+    }));
   });
 
   // End turn button
-  const endBtn = $('end-turn-button');
-  endBtn.disabled = state.turn !== 'player' || state.gameOver || state.aiThinking;
+  $('end-turn-button').disabled =
+    state.turn !== 'player' || state.gameOver || state.aiThinking;
 
   renderLog(state);
 }

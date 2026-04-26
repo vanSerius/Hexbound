@@ -16,6 +16,8 @@ export function dealDamageToUnit(state, target, amount, dealer = null) {
   if (dealer) applyLifestealHeal(state, dealer, dealt);
   if (target.health <= 0) {
     killUnit(state, target);
+  } else if (dealt > 0) {
+    triggerEffects(state, 'self_survives_damage', { sourceUnit: target });
   }
   return dealt;
 }

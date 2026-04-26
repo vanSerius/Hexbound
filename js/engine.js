@@ -11,6 +11,7 @@ import {
   triggerEffects,
   applyRelicAuraToUnit,
   applyRelicAuraToBoard,
+  effectiveCost,
 } from './abilities.js';
 import { isRush, isFleeting } from './keywords.js';
 import { runRushAttack, resolveCombat, killUnit } from './combat.js';
@@ -23,8 +24,12 @@ export function canPlayCard(state, side, handIndex) {
   const player = state[side];
   const card = player.hand[handIndex];
   if (!card) return false;
-  if (card.cost > player.mana) return false;
+  if (effectiveCost(state, side, card) > player.mana) return false;
   if (card.type === 'creature') {
+    // Lane restriction (e.g. Cathedral Giant only in center).
+    if (card.restrictLane) {
+      return laneHasRoom(state, side, card.restrictLane);
+    }
     const hasFreeLane = CONFIG.LANES.some(
       (lane) => player.battlefield[lane].length < CONFIG.MAX_LANE_UNITS,
     );
@@ -41,9 +46,15 @@ export function laneHasRoom(state, side, lane) {
 }
 
 /**
- * Run a card's on_play abilities directly. Spells / curses use this; creatures
- * also use this for any on_play abilities they declare.
+ * Lanes the given creature card is allowed to be played into for `side`.
  */
+export function validLanesForCreature(state, side, card) {
+  if (!card || card.type !== 'creature') return [];
+  const allowed = card.restrictLane ? [card.restrictLane] : CONFIG.LANES;
+  return allowed.filter((lane) => laneHasRoom(state, side, lane));
+}
+
+/** Run a card's on_play abilities directly. */
 function runOnPlayAbilities(state, ownerSide, card, sourceUnit, target) {
   const onPlay = (card.abilities || []).filter((a) => a.trigger === 'on_play');
   for (const ab of onPlay) {
@@ -60,9 +71,20 @@ function runOnPlayAbilities(state, ownerSide, card, sourceUnit, target) {
   }
 }
 
+/** Mirror Shard: if the relic is in play and this is the side's first
+ *  spell this turn, re-resolve the spell's on_play abilities once. */
+function maybeMirrorShardEcho(state, side, card, target) {
+  const player = state[side];
+  if (player.spellsCastThisTurn !== 1) return;
+  const hasMirror = player.relics.some((r) => r.cardId === 'mirror_shard');
+  if (!hasMirror) return;
+  logSystem(state, `Mirror Shard echoes ${card.name}.`);
+  runOnPlayAbilities(state, side, card, null, target);
+}
+
 /**
- * Play a card from hand. `target` is { kind: 'unit', instanceId } | { kind: 'hero', side } | null.
- * `lane` (for creatures) is one of CONFIG.LANES.
+ * Play a card from hand. `target` is { kind: 'unit', instanceId } |
+ * { kind: 'hero', side } | null. `lane` (creatures) is one of CONFIG.LANES.
  *
  * Returns true if the card was played, false otherwise.
  */
@@ -71,10 +93,12 @@ export function playCard(state, side, handIndex, { lane = null, target = null } 
   if (!canPlayCard(state, side, handIndex)) return false;
   const player = state[side];
   const card = player.hand[handIndex];
+  const cost = effectiveCost(state, side, card);
 
   if (card.type === 'creature') {
+    if (card.restrictLane && lane !== card.restrictLane) return false;
     if (!lane || !laneHasRoom(state, side, lane)) return false;
-    player.mana -= card.cost;
+    player.mana -= cost;
     player.hand.splice(handIndex, 1);
     const unit = instantiateUnit(card, side);
     unit.lane = lane;
@@ -82,27 +106,32 @@ export function playCard(state, side, handIndex, { lane = null, target = null } 
     applyRelicAuraToUnit(state, unit);
     logForSide(state, side, `${player.name} played ${card.name} in ${lane.toUpperCase()} lane.`);
     runOnPlayAbilities(state, side, card, unit, target);
-    if (state.gameOver) return true;
-    if (isRush(unit)) {
-      runRushAttack(state, unit);
+    if (!state.gameOver) {
+      // Notify listeners (e.g. Lantern of the Veil reacts to Spirit summons).
+      triggerEffects(state, 'friendly_unit_played', {
+        ownerSide: side,
+        playedUnit: unit,
+      });
     }
+    if (!state.gameOver && isRush(unit)) runRushAttack(state, unit);
     checkGameOver(state);
     return true;
   }
 
   if (card.type === 'spell' || card.type === 'curse') {
-    player.mana -= card.cost;
+    player.mana -= cost;
     player.hand.splice(handIndex, 1);
     logForSide(state, side, `${player.name} cast ${card.name}.`);
+    player.spellsCastThisTurn += 1;
     runOnPlayAbilities(state, side, card, null, target);
-    // Cast cards go to discard with full data so reshuffle keeps them playable.
+    if (!state.gameOver) maybeMirrorShardEcho(state, side, card, target);
     player.discardPile.push(card);
     checkGameOver(state);
     return true;
   }
 
   if (card.type === 'relic') {
-    player.mana -= card.cost;
+    player.mana -= cost;
     player.hand.splice(handIndex, 1);
     const relic = {
       instanceId: card.instanceId,
@@ -123,35 +152,63 @@ export function playCard(state, side, handIndex, { lane = null, target = null } 
   return false;
 }
 
-/**
- * Determine if a target choice is required for the given hand card.
- */
+/** True if the card's on_play wants the player to pick a target. */
 export function getTargetingRequirement(card) {
   if (!card) return null;
-  // Look at on_play abilities; if any have target: 'chosen', we need a target.
   const needsChosen = (card.abilities || []).some(
-    (a) => a.trigger === 'on_play' && a.target === 'chosen',
+    (a) => a.trigger === 'on_play' && (
+      a.target === 'chosen' || a.target === 'chosen_friendly_undead'
+    ),
   );
   if (!needsChosen) return null;
-  // For now we accept any unit or hero as a valid target. Spells like Wither/Silence
-  // typically target units; deal_damage spells can target hero or unit. We allow both
-  // and let the player's intent decide.
+  // Most chosen-targets accept any unit or hero. We let the click flow decide.
+  // Specific abilities (buff_unit_grant_lifesteal) silently no-op on invalid
+  // targets, which is acceptable for the MVP.
   return { kind: 'any' };
+}
+
+/**
+ * Expire any temporary buffs that should end on the start of `side`'s turn.
+ * Currently the only kind is 'caster_next_turn_start' (set by Moonlit Hex).
+ */
+function expireTempBuffs(state, side) {
+  for (const u of unitsForSide(state, 'player').concat(unitsForSide(state, 'enemy'))) {
+    if (!u.tempBuffs || !u.tempBuffs.length) continue;
+    const remaining = [];
+    for (const buff of u.tempBuffs) {
+      const shouldExpire =
+        buff.expires === 'caster_next_turn_start' && buff.casterSide === side;
+      if (!shouldExpire) {
+        remaining.push(buff);
+        continue;
+      }
+      // Reverse the buff's stat changes.
+      u.attack = Math.max(0, u.attack - (buff.attack || 0));
+      u.maxHealth = Math.max(1, u.maxHealth - (buff.health || 0));
+      u.health -= (buff.health || 0);
+      // Don't auto-revive: if reversing somehow took health > maxHealth, clamp.
+      if (u.health > u.maxHealth) u.health = u.maxHealth;
+    }
+    u.tempBuffs = remaining;
+  }
 }
 
 export function startTurn(state, side) {
   const p = state[side];
+  // Expire temp buffs that end at start of this side's turn.
+  expireTempBuffs(state, side);
   if (p.hasStarted) {
     p.maxMana = Math.min(p.maxMana + 1, CONFIG.MAX_MANA);
   }
   p.hasStarted = true;
+  // Apply queued mana from effects like Bone Cultist.
+  if (p.pendingMana) {
+    p.maxMana = Math.min(CONFIG.MAX_MANA, p.maxMana + p.pendingMana);
+    p.pendingMana = 0;
+  }
   p.mana = p.maxMana;
+  p.spellsCastThisTurn = 0;
   drawCard(state, side, 1);
-  // Refresh exhausted state at start of *own* turn (so units that became
-  // exhausted during the opponent's turn lose the flag without a wasted
-  // attack — safer for MVP). Actually: the brief specifies exhausted units
-  // skip their NEXT combat; we already handle the clear in resolveCombat.
-  // So nothing to do here for exhaust — but we still trigger turn_start.
   logSystem(state, `--- ${p.name}'s turn (${state.turnNumber}) — Mana ${p.mana}/${p.maxMana} ---`);
   triggerEffects(state, 'turn_start', { ownerSide: side });
   checkGameOver(state);
@@ -159,10 +216,8 @@ export function startTurn(state, side) {
 
 export function endTurn(state, side) {
   if (state.gameOver) return;
-  // Combat for the side that ended its turn.
   resolveCombat(state, side);
   if (state.gameOver) return;
-  // End-of-turn triggers (e.g. effects that watch turn_end on this side).
   triggerEffects(state, 'turn_end', { ownerSide: side });
   if (state.gameOver) return;
   // Fleeting units controlled by the ending side die.
@@ -172,7 +227,6 @@ export function endTurn(state, side) {
     killUnit(state, u);
     if (state.gameOver) return;
   }
-  // Hand off to the other side
   const next = otherSide(side);
   state.turn = next;
   if (next === 'player') state.turnNumber += 1;

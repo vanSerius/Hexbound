@@ -1,5 +1,10 @@
 import { CONFIG } from './config.js';
-import { canPlayCard, playCard, getTargetingRequirement } from './engine.js';
+import {
+  canPlayCard,
+  playCard,
+  getTargetingRequirement,
+  validLanesForCreature,
+} from './engine.js';
 import { unitsForSide } from './state.js';
 import { render } from './ui.js';
 
@@ -36,9 +41,7 @@ export function createTargeting(getState, onAfterPlay) {
       return;
     }
     if (card.type === 'creature') {
-      const validLanes = new Set(
-        CONFIG.LANES.filter((lane) => state.player.battlefield[lane].length < CONFIG.MAX_LANE_UNITS),
-      );
+      const validLanes = new Set(validLanesForCreature(state, 'player', card));
       render(state, { selectedHandIndex, validLanes });
       return;
     }

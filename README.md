@@ -54,31 +54,59 @@ the `js/` folder is served as-is.
 | Exhaust     | Cannot attack during its next combat phase.                    |
 | Silence     | Removes all abilities, buffs, and keywords from a unit.        |
 
-## Adding cards
+## Cards
 
-The engine is data-driven. To add new cards, just edit `js/cards.js`:
+The 20 final cards are wired up in `js/cards.js`, sliced from the two
+`assets/cards_sheet_*.png` sprite sheets (5 cols × 2 rows each).
+
+| Sheet 1               | Sheet 2                |
+|-----------------------|------------------------|
+| Bone Widow            | Cathedral Giant        |
+| Ash Hound             | Rot Banner             |
+| Bone Cultist          | Moonlit Hex            |
+| Gravebound Acolyte    | Wraithling             |
+| Withered Prophet      | Ashen Choir            |
+| Ritual Flame          | Crypt Leech            |
+| Blood Pact            | Grave Salt             |
+| Black Candle          | Iron Saint             |
+| Crown of Salt         | Widow's Kiss           |
+| Mirror Shard          | Lantern of the Veil    |
+
+### Adding or changing cards
+
+The engine is data-driven. To add a new card, just append to `CARDS` in
+`js/cards.js`:
 
 ```js
 {
   id: 'my_unit',
   name: 'My Unit',
   cost: 3,
-  type: 'creature',         // 'creature' | 'spell' | 'relic' | 'curse'
+  type: 'creature',                // 'creature' | 'spell' | 'relic' | 'curse'
   tribe: 'undead',
   attack: 3,
   health: 3,
   text: 'Card text shown to the player.',
-  keywords: ['rush'],       // optional: rush, taunt, lifesteal, fleeting
+  keywords: ['rush'],              // rush, taunt, lifesteal, fleeting
+  restrictLane: 'center',          // optional, creature can only land here
   abilities: [
     { trigger: 'on_play', effect: 'deal_damage', amount: 2, target: 'enemy_hero' }
   ],
-  sprite: { sheet: 'cards_sheet_01', index: 0 }, // optional
+  sprite: { sheet: 'cards_sheet_01', index: 0 },
 }
 ```
 
-If a sprite sheet PNG exists under `assets/<sheet>.png`, the engine will slice it as
-5 columns × 2 rows automatically. If not, the card renders with the CSS placeholder
-art — the game still works.
+Triggers supported by the trigger bus: `on_play`, `on_death`, `turn_start`,
+`turn_end`, `friendly_unit_dies` (with optional `condition: 'another'`),
+`unit_dies`, `self_survives_damage`, `friendly_unit_played` (with optional
+`condition: 'tribe:<name>'`), `aura`, `cost_modifier`.
+
+Effect handlers in `js/abilities.js` (extend by adding a new key to
+`effectHandlers`): `deal_damage`, `deal_damage_draw_if_killed`, `heal`, `draw`,
+`gain_stats`, `buff_unit`, `buff_unit_grant_lifesteal`, `buff_played_unit`,
+`debuff_unit`, `temp_debuff_unit`, `silence`, `destroy_friendly_unit`,
+`summon_token`, `exhaust_enemy_unit_low_power`, `gain_mana_next_turn`,
+`aura_attack`, `aura_health`, `cost_modifier`.
 
 ## Project structure
 
@@ -86,19 +114,22 @@ art — the game still works.
 index.html
 .nojekyll
 css/styles.css
-assets/                # sprite sheets go here later
+assets/
+  arena.png               # battlefield backdrop
+  cards_sheet_01.png      # cards 1–10
+  cards_sheet_02.png      # cards 11–20
 js/
-  main.js              # bootstrap + screen switching
-  config.js            # constants
-  cards.js             # card definitions (replace with your 20 cards)
-  state.js             # state factories
-  deck.js              # shuffle / draw / reshuffle
-  log.js               # game log
-  abilities.js         # trigger bus + effect handlers
-  keywords.js          # Rush / Fleeting / Taunt / Lifesteal / Exhaust / Silence
-  combat.js            # lane combat resolution
-  engine.js            # turn flow + playCard
-  ai.js                # random-valid-move enemy
-  ui.js                # DOM render
-  targeting.js         # click flow: card → lane / target
+  main.js                 # bootstrap + screen switching
+  config.js               # constants
+  cards.js                # card + token definitions
+  state.js                # state factories, instance helpers
+  deck.js                 # shuffle / draw / reshuffle
+  log.js                  # game log
+  abilities.js            # trigger bus, effect handlers, cost modifiers, auras
+  keywords.js             # Rush / Fleeting / Taunt / Lifesteal / Exhaust / Silence
+  combat.js               # lane combat resolution
+  engine.js               # turn flow, playCard, restrictLane, mirror echo
+  ai.js                   # random-valid-move enemy
+  ui.js                   # DOM render with sprite-sheet slicing
+  targeting.js            # click flow: card → lane / target
 ```

@@ -1,16 +1,15 @@
 import { CONFIG } from './config.js';
 import { otherSide, unitsForSide } from './state.js';
-import { canPlayCard, playCard, endTurn, getTargetingRequirement } from './engine.js';
+import {
+  canPlayCard,
+  playCard,
+  endTurn,
+  getTargetingRequirement,
+  validLanesForCreature,
+} from './engine.js';
 
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function pickRandomLane(state, side) {
-  const open = CONFIG.LANES.filter(
-    (lane) => state[side].battlefield[lane].length < CONFIG.MAX_LANE_UNITS,
-  );
-  return open.length > 0 ? pickRandom(open) : null;
 }
 
 /**
@@ -65,8 +64,9 @@ function listValidPlays(state, side) {
     const card = player.hand[i];
     if (!canPlayCard(state, side, i)) continue;
     if (card.type === 'creature') {
-      const lane = pickRandomLane(state, side);
-      if (lane) plays.push({ handIndex: i, lane, target: null });
+      const lanes = validLanesForCreature(state, side, card);
+      if (lanes.length === 0) continue;
+      plays.push({ handIndex: i, lane: pickRandom(lanes), target: null });
     } else if (card.type === 'spell' || card.type === 'curse') {
       const req = getTargetingRequirement(card);
       let target = null;
