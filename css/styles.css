@@ -1,4 +1,4 @@
-/* HEXBOUND — dark fantasy / gothic theme with sprite-sheet card art */
+/* HEXBOUND — dark fantasy / gothic theme, landscape mobile-first */
 
 :root {
   --bg-0: #0a0a10;
@@ -15,11 +15,27 @@
   --good: #6abf69;
   --warn: #d4a04c;
   --shadow: 0 6px 18px rgba(0,0,0,0.6);
-  /* Card cell aspect ratio matches the sprite-sheet cells (1672/5)/(941/2) ≈ 0.71 */
-  --card-w: 116px;
-  --card-h: 164px;
-  --unit-w: 96px;
-  --unit-h: 136px;
+
+  /* Sprite-cell aspect: (1672/5)/(941/2) ≈ 0.71  → height = width / 0.71 */
+  --card-aspect: 0.71;
+
+  /* Card height scales with the lesser of viewport height and width so the
+     UI fits on tiny landscape phones (375h) up to desktops (1080h). */
+  --card-h: clamp(96px, 22vh, 168px);
+  --card-w: calc(var(--card-h) * var(--card-aspect));
+
+  /* Units are smaller than cards by ~25% but still legible on phones. */
+  --unit-h: clamp(76px, 16vh, 132px);
+  --unit-w: calc(var(--unit-h) * var(--card-aspect));
+
+  --gap: clamp(4px, 1vh, 10px);
+  --pad: clamp(4px, 1vh, 12px);
+
+  /* Tap targets ≥ 44px per Apple HIG / Material guidelines. */
+  --tap: 44px;
+
+  /* Log panel width — collapses on smaller screens. */
+  --log-w: clamp(180px, 22vw, 300px);
 }
 
 * { box-sizing: border-box; }
@@ -31,13 +47,71 @@ html, body {
   color: var(--text);
   font-family: "Cinzel", "Trajan Pro", Georgia, serif;
   min-height: 100vh;
-  overflow-x: hidden;
+  /* Use 100svh on mobile to dodge the iOS URL bar. */
+  min-height: 100svh;
+  overflow: hidden;        /* Game is a single screen — no scrolling */
+  overscroll-behavior: none;
+  /* Prevent pull-to-refresh / rubber-banding on iOS Safari */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-button { font-family: inherit; cursor: pointer; }
+button {
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
 
-.screen { display: none; width: 100%; min-height: 100vh; }
+.screen {
+  display: none;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+}
 .screen.active { display: block; }
+
+/* ════════ Rotate-to-landscape overlay ═══════════════════════════════════
+   Shown only when the device is in portrait AND the screen is small enough
+   that the game truly needs landscape (tablets in portrait still play OK). */
+.rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background:
+    linear-gradient(rgba(10,8,16,0.92), rgba(10,8,16,0.96)),
+    url('../assets/arena.png') center/cover no-repeat;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text);
+}
+.rotate-content { padding: 24px; max-width: 320px; }
+.rotate-icon {
+  font-size: 96px;
+  color: var(--accent);
+  animation: rotate-hint 2s ease-in-out infinite;
+  display: inline-block;
+  transform-origin: 50% 50%;
+}
+.rotate-content h2 {
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--accent);
+  margin: 8px 0;
+}
+.rotate-content p {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+@keyframes rotate-hint {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  30%           { transform: rotate(-90deg); }
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .rotate-overlay { display: flex; }
+}
 
 /* ════════ Start Screen ═══════════════════════════════════════════════ */
 #start-screen {
@@ -48,19 +122,20 @@ button { font-family: inherit; cursor: pointer; }
   background:
     linear-gradient(rgba(10,8,16,0.65), rgba(10,8,16,0.85)),
     url('../assets/arena.png') center/cover no-repeat;
+  padding: 16px;
 }
 #start-screen.active { display: flex; }
 
 .title-block {
-  padding: 40px;
+  padding: clamp(20px, 5vh, 40px);
   border: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(40,20,50,0.55), rgba(10,10,16,0.85));
   box-shadow: var(--shadow);
-  max-width: 520px;
+  max-width: min(520px, 90vw);
 }
 .game-title {
-  font-size: 64px;
-  letter-spacing: 8px;
+  font-size: clamp(36px, 9vh, 72px);
+  letter-spacing: clamp(4px, 1vh, 8px);
   margin: 0 0 8px 0;
   color: var(--accent);
   text-shadow: 0 0 20px rgba(201,161,74,0.3), 0 2px 4px #000;
@@ -68,12 +143,13 @@ button { font-family: inherit; cursor: pointer; }
 .game-subtitle {
   font-style: italic;
   color: var(--text-dim);
-  margin-bottom: 32px;
+  margin-bottom: clamp(16px, 4vh, 32px);
+  font-size: clamp(12px, 1.6vh, 16px);
 }
 .hint {
-  font-size: 12px;
+  font-size: clamp(11px, 1.4vh, 13px);
   color: var(--text-dim);
-  margin-top: 24px;
+  margin-top: clamp(12px, 3vh, 24px);
 }
 
 .big-button {
@@ -81,31 +157,37 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text);
   border: 1px solid var(--border-glow);
   padding: 14px 36px;
-  font-size: 18px;
+  font-size: clamp(14px, 2vh, 18px);
   letter-spacing: 4px;
   text-transform: uppercase;
+  min-height: var(--tap);
   box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.1);
   transition: transform 0.1s, box-shadow 0.1s;
 }
-.big-button:hover {
+.big-button:hover, .big-button:active {
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(107,63,160,0.5), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
-/* ════════ Game Screen Layout ═════════════════════════════════════════ */
+/* ════════ Game Screen Layout ═════════════════════════════════════════
+   Single full-viewport grid, no page scroll. Rows shrink to fit. */
 #game-screen {
   display: none;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr var(--log-w);
   grid-template-rows: auto 1fr 1fr auto auto;
-  gap: 8px;
-  padding: 12px;
-  min-height: 100vh;
-  max-width: 1600px;
-  margin: 0 auto;
-  /* Arena image as the gothic backdrop. */
+  gap: var(--gap);
+  padding: var(--pad);
+  /* Account for safe area on notched phones */
+  padding-left: max(var(--pad), env(safe-area-inset-left));
+  padding-right: max(var(--pad), env(safe-area-inset-right));
+  padding-top: max(var(--pad), env(safe-area-inset-top));
+  padding-bottom: max(var(--pad), env(safe-area-inset-bottom));
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
   background:
     linear-gradient(rgba(10,8,16,0.55), rgba(10,8,16,0.78)),
-    url('../assets/arena.png') center/cover fixed no-repeat;
+    url('../assets/arena.png') center/cover no-repeat fixed;
 }
 #game-screen.active { display: grid; }
 
@@ -120,11 +202,13 @@ button { font-family: inherit; cursor: pointer; }
 .hero-area {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
+  gap: clamp(6px, 1.5vw, 16px);
+  padding: clamp(4px, 1vh, 8px) clamp(8px, 2vw, 16px);
   border: 1px solid var(--border);
   background: linear-gradient(90deg, rgba(40,20,30,0.6), rgba(10,10,16,0.6));
   position: relative;
+  flex-wrap: wrap;
+  min-height: 0;
 }
 .hero-area.enemy {
   border-color: #5a2a2a;
@@ -143,18 +227,18 @@ button { font-family: inherit; cursor: pointer; }
 .hero-portrait {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 200px;
+  gap: 2px;
+  min-width: 110px;
 }
 .hero-name {
-  font-size: 18px;
+  font-size: clamp(12px, 1.7vh, 18px);
   letter-spacing: 2px;
   color: var(--accent);
 }
 .hero-stats {
   display: flex;
-  gap: 16px;
-  font-size: 14px;
+  gap: clamp(6px, 1.5vw, 16px);
+  font-size: clamp(11px, 1.5vh, 14px);
   font-weight: bold;
 }
 .hero-stats .health { color: var(--health); }
@@ -163,25 +247,25 @@ button { font-family: inherit; cursor: pointer; }
 .hand-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  gap: 2px;
+  font-size: clamp(10px, 1.3vh, 12px);
   color: var(--text-dim);
 }
 
 .relic-zone {
   display: flex;
-  gap: 6px;
-  flex: 1;
+  gap: 4px;
+  flex: 1 1 auto;
   flex-wrap: wrap;
-  min-height: 48px;
+  min-height: 0;
   align-items: center;
 }
 .relic-zone .relic {
-  width: 40px;
-  height: 56px;
+  width: clamp(28px, 4vh, 44px);
+  height: clamp(40px, 6vh, 60px);
   border: 1px solid var(--accent);
   background: radial-gradient(circle, #3a2a4a, #1a0e1d);
-  font-size: 11px;
+  font-size: clamp(9px, 1.2vh, 11px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -191,19 +275,21 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--accent);
   position: relative;
   box-shadow: 0 0 8px rgba(201,161,74,0.25);
+  background-color: var(--bg-2);
 }
 
 .end-turn {
   background: linear-gradient(180deg, #8b3a3a, #4a1a1a);
   color: var(--text);
   border: 1px solid #c33b3b;
-  padding: 12px 24px;
-  font-size: 14px;
+  padding: clamp(8px, 1.4vh, 12px) clamp(14px, 2vw, 24px);
+  font-size: clamp(11px, 1.5vh, 14px);
   letter-spacing: 2px;
   text-transform: uppercase;
   margin-left: auto;
+  min-height: var(--tap);
 }
-.end-turn:hover {
+.end-turn:hover, .end-turn:active {
   background: linear-gradient(180deg, #a04545, #5a2020);
 }
 .end-turn:disabled {
@@ -211,13 +297,26 @@ button { font-family: inherit; cursor: pointer; }
   cursor: not-allowed;
 }
 
+.log-toggle {
+  display: none; /* shown only on small screens via media queries */
+  background: rgba(20,15,25,0.85);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 22px;
+  width: var(--tap);
+  height: var(--tap);
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+}
+
 /* ════════ Battlefield ════════════════════════════════════════════════ */
 .battlefield {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  padding: 8px;
-  min-height: 160px;
+  gap: var(--gap);
+  padding: var(--gap);
+  min-height: 0;
   background: linear-gradient(180deg, rgba(10,10,16,0.45), rgba(20,15,25,0.45));
   border: 1px dashed var(--border);
 }
@@ -228,23 +327,25 @@ button { font-family: inherit; cursor: pointer; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  min-height: 156px;
+  padding: 4px;
+  min-height: 0;
   border: 1px solid var(--border);
   background: rgba(0,0,0,0.32);
   position: relative;
   transition: background 0.15s, border-color 0.15s;
 }
 .lane-label {
-  font-size: 10px;
+  font-size: clamp(8px, 1vh, 10px);
   color: var(--text-dim);
   letter-spacing: 4px;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 .lane-units {
   display: flex;
-  gap: 6px;
-  flex: 1;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
@@ -266,6 +367,7 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: var(--shadow);
   position: relative;
   user-select: none;
+  flex: 0 0 auto;
 }
 .unit.player-unit { border-color: #4a78c2; }
 .unit.enemy-unit  { border-color: #c33b3b; }
@@ -275,13 +377,13 @@ button { font-family: inherit; cursor: pointer; }
 
 .unit-stats-overlay {
   position: absolute;
-  bottom: 2px;
-  left: 4px;
-  right: 4px;
+  bottom: 1px;
+  left: 3px;
+  right: 3px;
   display: flex;
   justify-content: space-between;
   font-weight: 900;
-  font-size: 18px;
+  font-size: clamp(13px, 2vh, 18px);
   text-shadow:
     -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
      0 0 4px #000;
@@ -293,19 +395,19 @@ button { font-family: inherit; cursor: pointer; }
 
 .unit-keywords-overlay {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 1px;
+  right: 1px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 9px;
+  font-size: clamp(7px, 0.9vh, 9px);
   font-weight: bold;
   color: var(--accent);
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 }
 .unit-keywords-overlay span {
   background: rgba(0,0,0,0.6);
-  padding: 1px 3px;
+  padding: 1px 2px;
   border: 1px solid rgba(201,161,74,0.5);
 }
 
@@ -315,7 +417,7 @@ button { font-family: inherit; cursor: pointer; }
   left: 4px;
   right: 4px;
   text-align: center;
-  font-size: 10px;
+  font-size: clamp(8px, 1vh, 10px);
   color: var(--text);
   text-shadow: 0 1px 2px #000;
 }
@@ -335,13 +437,20 @@ button { font-family: inherit; cursor: pointer; }
 /* ════════ Hand & Cards ═══════════════════════════════════════════════ */
 .hand {
   display: flex;
-  gap: 6px;
+  gap: clamp(2px, 0.5vw, 6px);
   justify-content: center;
-  padding: 8px;
-  min-height: calc(var(--card-h) + 16px);
+  align-items: flex-end;
+  padding: var(--gap);
+  min-height: calc(var(--card-h) + 8px);
   background: linear-gradient(0deg, rgba(20,15,25,0.7), transparent);
   border-top: 1px solid var(--border);
+  /* Allow horizontal scroll if hand is too wide for tiny screens */
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
 }
+.hand::-webkit-scrollbar { height: 4px; }
+.hand::-webkit-scrollbar-thumb { background: var(--border); }
 
 .card {
   width: var(--card-w);
@@ -351,16 +460,19 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: var(--shadow);
   user-select: none;
   position: relative;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform 0.12s, box-shadow 0.12s;
   cursor: pointer;
+  flex: 0 0 auto;
 }
-.card:hover {
-  transform: translateY(-12px) scale(1.05);
-  box-shadow: 0 12px 24px rgba(107,63,160,0.5), 0 0 16px rgba(201,161,74,0.3);
-  z-index: 10;
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-12px) scale(1.05);
+    box-shadow: 0 12px 24px rgba(107,63,160,0.5), 0 0 16px rgba(201,161,74,0.3);
+    z-index: 10;
+  }
 }
 .card.selected {
-  transform: translateY(-20px) scale(1.05);
+  transform: translateY(-12px) scale(1.07);
   outline: 3px solid var(--good);
   outline-offset: 2px;
   z-index: 11;
@@ -373,16 +485,16 @@ button { font-family: inherit; cursor: pointer; }
 
 .card .cost-mod {
   position: absolute;
-  top: -10px;
-  left: -10px;
-  width: 30px;
-  height: 30px;
+  top: -8px;
+  left: -8px;
+  width: clamp(22px, 3vh, 30px);
+  height: clamp(22px, 3vh, 30px);
   border-radius: 50%;
   background: radial-gradient(circle, var(--good), #2a5a2a);
   border: 2px solid var(--good);
   color: #fff;
   font-weight: 900;
-  font-size: 16px;
+  font-size: clamp(12px, 2vh, 16px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -394,29 +506,45 @@ button { font-family: inherit; cursor: pointer; }
 /* ════════ Log Panel ══════════════════════════════════════════════════ */
 .log-panel {
   border: 1px solid var(--border);
-  background: rgba(10,10,16,0.82);
-  padding: 8px 12px;
+  background: rgba(10,10,16,0.86);
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
+  min-height: 0;
   overflow: hidden;
 }
 .log-panel h3 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
+  margin: 0 0 6px 0;
+  font-size: clamp(11px, 1.4vh, 14px);
   letter-spacing: 4px;
   color: var(--accent);
   border-bottom: 1px solid var(--border);
   padding-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.log-close {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 22px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
 }
 .log-panel ul {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 11px;
+  font-size: clamp(10px, 1.3vh, 12px);
   line-height: 1.4;
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  -webkit-overflow-scrolling: touch;
 }
 .log-panel li {
   padding: 3px 0;
@@ -438,24 +566,71 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   justify-content: center;
   z-index: 100;
+  padding: 16px;
 }
 .modal.hidden { display: none; }
 .modal-content {
   background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
   border: 2px solid var(--border-glow);
-  padding: 40px 60px;
+  padding: clamp(20px, 5vh, 40px) clamp(24px, 6vw, 60px);
   text-align: center;
   box-shadow: 0 0 60px rgba(107,63,160,0.6);
-  max-width: 480px;
+  max-width: min(480px, 90vw);
 }
 .modal-content h2 {
-  font-size: 48px;
-  letter-spacing: 8px;
+  font-size: clamp(28px, 6vh, 48px);
+  letter-spacing: clamp(4px, 1vh, 8px);
   margin: 0 0 16px 0;
   color: var(--accent);
 }
 .modal-content h2.lose { color: var(--accent-2); }
 .modal-content p {
   color: var(--text-dim);
-  margin-bottom: 24px;
+  margin-bottom: clamp(16px, 4vh, 24px);
+  font-size: clamp(12px, 1.6vh, 14px);
+}
+
+/* ════════ Small-screen tweaks (landscape phones) ═════════════════════
+   Hide log by default; show as floating overlay when toggled.
+   These rules apply even in landscape — the "rotate" overlay only kicks
+   in for actual portrait. */
+@media (max-width: 900px), (max-height: 500px) {
+  #game-screen { grid-template-columns: 1fr; }
+  #log-panel {
+    display: none;
+    position: fixed;
+    top: 8px;
+    bottom: 8px;
+    right: 8px;
+    width: min(72vw, 320px);
+    z-index: 50;
+    box-shadow: 0 0 30px rgba(0,0,0,0.85);
+  }
+  #log-panel.show { display: flex; }
+  .log-toggle { display: inline-flex; }
+  .log-close { display: inline-flex; }
+  /* Hand/relic info gets a bit smaller on tiny phones */
+  .hero-name { letter-spacing: 1px; }
+  .hand-info { font-size: 10px; }
+}
+
+/* ════════ Very small landscape (e.g. iPhone SE 667×375) ══════════════ */
+@media (max-height: 420px) {
+  :root {
+    --card-h: clamp(82px, 28vh, 110px);
+    --unit-h: clamp(64px, 20vh, 92px);
+    --gap: 3px;
+    --pad: 3px;
+  }
+  .hero-area {
+    padding: 2px 6px;
+    gap: 6px;
+  }
+  .hero-portrait { min-width: 90px; }
+  .hero-name { font-size: 11px; letter-spacing: 1px; }
+  .hero-stats { font-size: 11px; gap: 6px; }
+  .hand-info { display: none; }       /* deck/discard counts hidden, still in log */
+  .relic-zone .relic { width: 26px; height: 36px; font-size: 9px; }
+  .lane-label { display: none; }
+  .battlefield { padding: 2px; }
 }

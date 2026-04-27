@@ -82,6 +82,13 @@ function bindGlobalControls() {
   document.getElementById('start-button').addEventListener('click', startNewGame);
   document.getElementById('restart-button').addEventListener('click', startNewGame);
   document.getElementById('end-turn-button').addEventListener('click', onPlayerEndTurn);
+
+  // Log panel: hidden on small screens by default; toggle button shows it.
+  const logPanel = document.getElementById('log-panel');
+  const logToggle = document.getElementById('log-toggle');
+  const logClose = document.getElementById('log-close');
+  logToggle.addEventListener('click', () => logPanel.classList.toggle('show'));
+  logClose.addEventListener('click', () => logPanel.classList.remove('show'));
 }
 
 bindGlobalControls();

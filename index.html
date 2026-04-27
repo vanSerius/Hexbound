@@ -2,17 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a10" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>HEXBOUND</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
+  <div id="rotate-overlay" class="rotate-overlay">
+    <div class="rotate-content">
+      <div class="rotate-icon">⟳</div>
+      <h2>Rotate your device</h2>
+      <p>HEXBOUND is played in landscape mode.</p>
+    </div>
+  </div>
+
   <div id="start-screen" class="screen active">
     <div class="title-block">
       <h1 class="game-title">HEXBOUND</h1>
       <p class="game-subtitle">A dark fantasy lane battler</p>
       <button id="start-button" class="big-button">Start Game</button>
-      <p class="hint">Click cards in your hand to play them. Click End Turn to resolve combat.</p>
+      <p class="hint">Tap a card to select it. Tap End Turn to resolve combat.</p>
     </div>
   </div>
 
@@ -26,8 +38,8 @@
         </div>
       </div>
       <div class="hand-info">
-        <span>Hand: <span id="enemy-hand-count">0</span></span>
-        <span>Deck: <span id="enemy-deck-count">0</span></span>
+        <span>Hand <span id="enemy-hand-count">0</span></span>
+        <span>Deck <span id="enemy-deck-count">0</span></span>
       </div>
       <div id="enemy-relics" class="relic-zone"></div>
     </div>
@@ -54,16 +66,17 @@
         </div>
       </div>
       <div class="hand-info">
-        <span>Deck: <span id="player-deck-count">0</span></span>
-        <span>Discard: <span id="player-discard-count">0</span></span>
+        <span>Deck <span id="player-deck-count">0</span></span>
+        <span>Disc <span id="player-discard-count">0</span></span>
       </div>
+      <button id="log-toggle" class="log-toggle" type="button" aria-label="Toggle log">≡</button>
       <button id="end-turn-button" class="end-turn">End Turn</button>
     </div>
 
     <div id="player-hand" class="hand"></div>
 
     <aside id="log-panel" class="log-panel">
-      <h3>Log</h3>
+      <h3>Log <button id="log-close" class="log-close" type="button" aria-label="Close log">×</button></h3>
       <ul id="log-list"></ul>
     </aside>
   </div>
